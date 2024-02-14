@@ -8,3 +8,5 @@ RUN apt-get update && \
 
 # Install Basic Packages
 RUN pip install ipykernel jupyter
+
+RUN pip install streamlit langchain langchain-community langchain-openai python-dotenv tiktoken
