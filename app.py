@@ -18,11 +18,8 @@ from langchain.memory import ConversationBufferMemory
 
 #OPENAIモデル+検索モデル
 from langchain.chat_models import ChatOpenAI
-from langchain.chains import RetrievalQA
 
-#ベクトルストア作成用モジュール
-from langchain.document_loaders import TextLoader, DirectoryLoader
-from langchain.text_splitter import CharacterTextSplitter
+#ベクトルストア参照用モジュール
 from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.vectorstores import Chroma
 import chromadb
@@ -30,7 +27,7 @@ import chromadb
 #UI用ライブラリ
 import streamlit as st
 
-#UI
+#UIの上部に表示されるタイトル設定
 st.title("QA")
 
 #.envからOpenAIのAPI Keyを参照
@@ -57,7 +54,7 @@ vectorstore = Chroma(
         persist_directory=PRESIST_PATH,
         )
 
-retriever = vectorstore.as_retriever()
+retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
 
 #回答を生成するモデル(Model)
 model = ChatOpenAI(
@@ -75,27 +72,23 @@ if "memory" not in st.session_state:
 memory = st.session_state.memory
 
 chain = ConversationalRetrievalChain.from_llm(
-                    llm=model,
-                    retriever=retriever,
-                    memory=memory,
-                    )
+        llm=model,
+        retriever=retriever,
+        memory=memory,
+        )
 
 #プロンプト設定
-# template = """
-# あなたは夏目漱石のこころの主人公です。
-# ##以下の##情報をもとに、質問に対して、主人公になりきって回答してください。
-# ##情報: {context}
+system_prompt = """
+あなたは夏目漱石著の文学作品「こころ」における「私」になりきって以下の質問に回答してください。
+##日本語で回答してください
+##前提知識ではなく、与えられた文書から「私」の性格や言葉遣いを解釈して演じてください。
+質問: {question}
+"""
 
+prompt_text = PromptTemplate(template=system_prompt,
+                             input_variables=["question"])
 
-# ##質問: {question}
-# 回答:"""
-
-# prompt = PromptTemplate(
-#     template=template,
-#     input_variables=["context", "question"],
-# )
-
-#対話履歴の初期化(UI用)
+#対話履歴の初期化
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -108,6 +101,7 @@ prompt = st.chat_input("質問をどうぞ。")
 
 if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
+    formatted_prompt_text = prompt_text.format(question=prompt)
 
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -115,7 +109,7 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Tinking..."):
             response = chain(
-            {"question": prompt}
+            {"question": formatted_prompt_text}
         )
             st.markdown(response["answer"])
 
